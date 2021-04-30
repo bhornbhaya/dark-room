@@ -1,0 +1,454 @@
+<!DOCTYPE html>
+<!--To run this file..locate the PROJECT_1104 folder directory on your command prompt and type in the following:
+ http-server . -p 8000
+You should get a link that you can use to run the file locally!!!-->
+<html lang="en">
+<head>
+    <title>Dark Room</title>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, user-scalable=no, minimum-scale=1.0, maximum-scale=1.0">
+    <link rel=" stylesheet" href="../stylesheet/textstyle.css" />
+</head>
+<body>
+<script src="js/ammo.js"></script>
+<script type="module" src="js/timer.js"></script>
+<script type="module" src="js/room.js"></script>
+<script type="module" src="js/build/three.module.js"></script>
+<div id="blocker">
+    <div id="instructions">
+        <span style="font-size:36px">
+            Paused..Click to play
+            <br>
+            ↑ move forward
+            <br>
+            ↓ move backwards
+            <br>
+            ← move left
+            <br>
+            → move right
+            <br>
+        </span>
+    </div>
+</div>
+<script type="module">
+    //importing packages
+    import * as THREE from './js/build/three.module.js';
+    import { PointerLockControls } from './js/PointerLockControls.js';
+    import {timerSetup} from './js/timer.js';
+    import {room} from './js/room.js';
+    //Initializing variables!!
+    let camera, shape, scene, clock, timerDisplay, timer, physicsWorld, renderer, controls, tmpTrans, material;
+    let i, spotlight, ambientLight, cube;
+    const minutes = 0, seconds = 0;
+    let vectorr;
+    let newWall;
+    let score;
+    let bestScore = -1;
+    let timerText, scoreText;
+    const player = {speed: 3.6};
+    const animateSwitch = Boolean(true);
+    let player1;
+    let transform, motionState, colShape, localInertia, rbInfo;
+    let playerBody = null,
+        moveDirection = { left: 0, right: 0, forward: 0, back: 0 }
+    const STATE = { DISABLE_DEACTIVATION : 4 }
+    let dimensions = {length: 350, width: 240};
+    let raycaster;
+    let animateID;
+    const direction = new THREE.Vector3();
+    const color = new THREE.Color();
+    let mainRoom;
+
+    //Initializing Ammo js (Physics engine)
+    Ammo().then( start )
+
+    //Main method which runs functions
+    function start(){
+
+        tmpTrans = new Ammo.btTransform();
+        setupGraphics();
+        setupPhysicsWorld();
+        createPlayer();
+        createEndCube(dimensions.length, dimensions.width);
+        makeRoom(dimensions.length, dimensions.width);
+        createWall(dimensions.length, dimensions.width, 0.15, -60);
+        createWall(dimensions.length, dimensions.width, 0.60, 60);
+        setupEventHandlers();
+        renderFrame();
+    }
+
+    //Set up scene, camera, clock, lighting, renderer
+    function setupGraphics() {
+
+        clock = new THREE.Clock();
+
+        //THIS IS THE TIMER WHICH COUNTS TIME ELAPSED IN GAME..
+        timer = new THREE.Clock();
+        timerDisplay = new timerSetup();
+        //seconds = new THREE.Clock();
+
+        scene = new THREE.Scene();
+
+        camera = new THREE.PerspectiveCamera( 75, window.innerWidth / window.innerHeight, 1, 1000 );
+        vectorr = new THREE.Vector3();
+
+        addLights();
+        pointerSetup();
+
+        renderer = new THREE.WebGLRenderer( { antialias: true } );
+        renderer.setClearColor( 0xbfd1e5 );
+        renderer.setPixelRatio( window.devicePixelRatio );
+        renderer.setSize( window.innerWidth, window.innerHeight );
+        document.body.appendChild( renderer.domElement );
+
+        window.addEventListener( 'resize', onWindowResize );
+
+    }
+
+    //set up physical worlds
+    function setupPhysicsWorld(){
+
+        let collisionConfiguration  = new Ammo.btDefaultCollisionConfiguration(),
+            dispatcher              = new Ammo.btCollisionDispatcher(collisionConfiguration),
+            overlappingPairCache    = new Ammo.btDbvtBroadphase(),
+            solver                  = new Ammo.btSequentialImpulseConstraintSolver();
+
+        physicsWorld = new Ammo.btDiscreteDynamicsWorld(dispatcher, overlappingPairCache, solver, collisionConfiguration);
+        physicsWorld.setGravity(new Ammo.btVector3(0, -10, 0));
+
+    }
+
+    //create room of dimensions a, c..
+    function createWall(a, c, b, d){
+        newWall = new THREE.Mesh(
+            new THREE.BoxGeometry(1,1,1),
+            new THREE.MeshPhongMaterial({
+                color: "white",
+                specular: 0x050505,
+                shininess: 100,
+                side: THREE.DoubleSide})
+        );
+        newWall.receiveShadow = true;
+        newWall.castShadow = true;
+        scene.add(newWall);
+        newWall.scale.set((a), 40, 1);
+        newWall.position.x += (a / 2) + d;
+        newWall.position.z += -(c * b);
+        addPhysicsElements(newWall.scale.x, newWall.scale.y, newWall.scale.z,
+            newWall.rotation.x, newWall.rotation.y, newWall.rotation.z,
+            newWall.position.x, newWall.position.y, newWall.position.z);
+    }
+
+    //create room of dimensions a, c..
+    function makeRoom(a, c){
+        mainRoom = new room(a, c);
+        mainRoom.addTo(scene);
+        for (i = 0; i<6; i++){
+            addPhysicsElements(mainRoom.wallObj(i).scale.x, mainRoom.wallObj(i).scale.y, mainRoom.wallObj(i).scale.z,
+                mainRoom.wallObj(i).rotation.x, mainRoom.wallObj(i).rotation.y, mainRoom.wallObj(i).rotation.z,
+                mainRoom.wallObj(i).position.x, mainRoom.wallObj(i).position.y, mainRoom.wallObj(i).position.z);
+        }
+    }
+
+    //adding physical elements to the room (so object cannot move through it)
+    function addPhysicsElements(scale_x, scale_y, scale_z, rot_x, rot_y, rot_z, pos_x, pos_y, pos_z){
+        if (rot_x === Math.PI/2){
+            rot_x = 1;
+        }
+        if (rot_y === Math.PI/2){
+            rot_y = 1;
+        }
+        if (rot_z === Math.PI/2){
+            rot_z = 1;
+        }
+        let mass = 0;
+        let transform = new Ammo.btTransform();
+        transform.setIdentity();
+        transform.setOrigin( new Ammo.btVector3( pos_x , pos_y , pos_z) );
+        transform.setRotation( new Ammo.btQuaternion( rot_x, rot_y, rot_z, 1 ) );
+        let motionState = new Ammo.btDefaultMotionState( transform );
+
+        let colShape = new Ammo.btBoxShape( new Ammo.btVector3( scale_x * 0.5, scale_y * 0.5, scale_z * 0.5 ) );
+        colShape.setMargin( 0.05 );
+
+        let localInertia = new Ammo.btVector3( 0, 0, 0 );
+        colShape.calculateLocalInertia( mass, localInertia );
+
+        let rbInfo = new Ammo.btRigidBodyConstructionInfo( mass, motionState, colShape, localInertia );
+        let body = new Ammo.btRigidBody( rbInfo );
+
+        body.setFriction(5.5);
+        body.setRollingFriction(1);
+        body.setDamping(0.95, 0.95);
+
+        physicsWorld.addRigidBody( body );
+
+    }
+
+    function  createEndCube(a, c){
+        cube = new THREE.Mesh(
+            new THREE.BoxGeometry(7,7,7),
+            new THREE.MeshLambertMaterial({
+                color: "white",
+                emissive: "green",
+                wireframe: true,
+                side: THREE.DoubleSide})
+        );
+        cube.receiveShadow = true;
+        cube.castShadow = true;
+        cube.position.set((a-17), 0,-(c-24));
+        cube.rotation.set(45,0,45);
+        scene.add(cube);
+    }
+    //creating player object, camera is attached (This is transparent & will interact with walls so not to pass through)
+    function createPlayer(){
+        let radius = 15;
+        let pos = {x: 18, y:-4, z: -13};
+        let quat = {x: 0, y: 0, z: 0, w: 1};
+        let mass = 1;
+        //threeJS Section
+        playerBody = new THREE.Mesh(new THREE.SphereBufferGeometry(radius), new THREE.MeshLambertMaterial({transparent:true, opacity:0.0}));
+        playerBody.position.set(pos.x, pos.y, pos.z );
+
+        playerBody.castShadow = true;
+        playerBody.receiveShadow = true;
+        scene.add(playerBody);
+
+        //Ammojs Section
+        transform = new Ammo.btTransform();
+        transform.setIdentity();
+        transform.setOrigin( new Ammo.btVector3(pos.x, pos.y, pos.z) );
+        transform.setRotation( new Ammo.btQuaternion( quat.x, quat.y, quat.z, quat.w ) );
+        motionState = new Ammo.btDefaultMotionState( transform );
+        colShape = new Ammo.btSphereShape( radius );
+        colShape.setMargin( 0.05 );
+
+        localInertia = new Ammo.btVector3( 0, 0, 0 );
+        colShape.calculateLocalInertia( mass, localInertia );
+
+        rbInfo = new Ammo.btRigidBodyConstructionInfo( mass, motionState, colShape, localInertia );
+        player1 = new Ammo.btRigidBody( rbInfo );
+
+        player1.setFriction(5.5);
+        player1.setRollingFriction(1);
+        player1.setDamping(0.95, 0.95);
+        player1.setActivationState( STATE.DISABLE_DEACTIVATION );
+        physicsWorld.addRigidBody( player1 );
+        playerBody.userData.physicsBody = player1;
+    }
+
+    //moving player object
+    function movePlayer(){
+
+        let scalingFactor = 20;
+        let moveZ =  (moveDirection.forward - moveDirection.back)*vectorr.z + (moveDirection.right - moveDirection.left)*vectorr.x;
+        let moveX =  (moveDirection.forward - moveDirection.back)*vectorr.x + (moveDirection.left - moveDirection.right)*vectorr.z;
+        let moveY =  0;
+
+        if( moveX === 0 && moveY === 0 && moveZ === 0) return;
+        let resultantImpulse = new Ammo.btVector3( moveX, moveY, moveZ )
+        resultantImpulse.op_mul(scalingFactor);
+        let physicsBody = playerBody.userData.physicsBody;
+        physicsBody.setLinearVelocity( resultantImpulse );
+    }
+
+    //rendering frame, anything that is meant to run in realtime once game is rendered (player moving, controls)
+    function renderFrame() {
+
+        let deltaTime = clock.getDelta();
+
+        movePlayer();
+        updatePhysics( deltaTime );
+
+        //ONCE PLAYER MOVES INTO END PART OF GAME (WHERE GREEN CUBE IS), RUN PRINTSCORE()
+        if (playerBody.position.z < -(dimensions.width -36) && playerBody.position.x > (dimensions.length - 33)) {
+            timer.stop();
+            bestScore = timerDisplay.calcBestScore(score, bestScore);
+            timerDisplay.getBestScore(bestScore);
+            // resetGame();
+            location.reload();
+        }
+        //ELSE UPDATE AND DISPLAY TIMER..
+        else{
+            timer.getDelta();
+            score = (timer.elapsedTime*100).toFixed(2);
+            score = timerDisplay.convertToMinutes(score);
+            timerDisplay.displayTimer(score);
+        }
+
+        if ( controls.isLocked === true ) {
+            raycaster.ray.origin.copy( controls.getObject().position );
+            raycaster.ray.origin.y -= 10;
+            //RESUME TIMER IF GAME RESUMES AND HAS ALREADY STARTED RUNNING (!= 0)
+            if  (timer.elapsedTime !== 0){
+               timer.resume();
+            }
+        }
+        //TIMER IS PAUSE WHILE CONTROLS ARE LOCKED (GAME PAUSED)
+        else {
+            timer.stop();
+        }
+        camera.position.copy(playerBody.position);
+        camera.position.y += 15;
+        camera.getWorldDirection( vectorr );
+        spotlight.target.position.set( 0, 0, -1 );
+        spotlight.position.copy( camera.position );
+        cube.rotation.y += 0.03;
+        if (animateSwitch){
+            animateID = requestAnimationFrame( renderFrame );
+            renderer.render( scene, camera );}
+        else {
+            cancelAnimationFrame(animateID);
+        }
+    }
+
+    function resetGame(){
+        //animateSwitch = false;
+        setTimeout(function(){
+            //DELETE PLAYER OBJECTS
+            playerBody.geometry.dispose();
+            playerBody.material.dispose();
+            scene.remove(playerBody);
+            physicsWorld.removeRigidBody( player1 );
+            Ammo.destroy(player1);
+            Ammo.destroy(transform);
+            Ammo.destroy(motionState);
+            Ammo.destroy(colShape);
+            Ammo.destroy(localInertia);
+            Ammo.destroy(rbInfo);
+            //RECREATE PLAYER OBJECT..
+            createPlayer();
+            //RESTART TIMER
+            timer.start();
+        }, 2500);
+    }
+
+    function setupEventHandlers(){
+
+        window.addEventListener( 'keydown', handleKeyDown, false);
+        window.addEventListener( 'keyup', handleKeyUp, false);
+
+    }
+    //run once keyboard is pressed!
+    function handleKeyDown(event){
+
+        let keyCode = event.keyCode;
+        switch(keyCode){
+
+            case 38: //↑: FORWARD
+                moveDirection.forward = player.speed
+                break;
+
+            case 40: //↓: BACK
+                moveDirection.back = player.speed
+                break;
+
+            case 37: //←: LEFT
+                moveDirection.left = player.speed
+                break;
+
+            case 39: //→: RIGHT
+                moveDirection.right = player.speed
+                break;
+        }
+    }
+
+    //run when keyboard is not being pressed..
+    function handleKeyUp(event){
+        let keyCode = event.keyCode;
+
+        switch(keyCode){
+            case 38: //↑: FORWARD
+                moveDirection.forward = 0
+                break;
+
+            case 40: //↓: BACK
+                moveDirection.back = 0
+                break;
+
+            case 37: //←: LEFT
+                moveDirection.left = 0
+                break;
+
+            case 39: //→: RIGHT
+                moveDirection.right = 0
+                break;
+        }
+    }
+
+    //set up mouse controls (pointer)
+    function pointerSetup(){
+        controls = new PointerLockControls( camera, document.body );
+
+        const blocker = document.getElementById( 'blocker' );
+        const instructions = document.getElementById( 'instructions' );
+
+        instructions.addEventListener( 'click', function () {
+
+            controls.lock();
+
+        } );
+
+        controls.addEventListener( 'lock', function () {
+
+            instructions.style.display = 'none';
+            blocker.style.display = 'none';
+
+        } );
+
+        controls.addEventListener( 'unlock', function () {
+
+            blocker.style.display = 'block';
+            instructions.style.display = '';
+
+        } );
+
+        scene.add( controls.getObject() );
+        raycaster = new THREE.Raycaster( new THREE.Vector3(), new THREE.Vector3( 0, - 1, 0 ), 0, 10 );
+
+    }
+
+    //window resize
+    function onWindowResize() {
+
+        camera.aspect = window.innerWidth / window.innerHeight;
+        camera.updateProjectionMatrix();
+        renderer.setSize( window.innerWidth, window.innerHeight );
+
+    }
+
+    //specifying lights (function is ran in setupGraphics() )
+    function addLights(){
+
+        //LIGHTS
+        ambientLight = new THREE.AmbientLight("white", 0.02);
+        scene.add(ambientLight);
+        spotlight = new THREE.SpotLight( 0xf5ffcf, 1 );
+        spotlight.intensity = 0.6;
+        spotlight.angle = Math.PI / 4.5;
+        spotlight.penumbra = 0.55;
+        spotlight.decay = 1.5;
+        spotlight.distance = 280;
+        spotlight.castShadow = true;
+        scene.add( spotlight );
+        camera.add( spotlight.target );
+    }
+
+    //updating physics world.. ran in renderFrame()
+    function updatePhysics( deltaTime ){
+        // Step world
+        physicsWorld.stepSimulation( deltaTime, 10 );
+        let objAmmo = playerBody.userData.physicsBody;
+        let ms = objAmmo.getMotionState();
+        if ( ms ) {
+            ms.getWorldTransform( tmpTrans );
+            let p = tmpTrans.getOrigin();
+            let q = tmpTrans.getRotation();
+            playerBody.position.set(p.x(), p.y(), p.z());
+            playerBody.quaternion.set( q.x(), q.y(), q.z(), q.w() );
+        }
+    }
+
+</script>
+</body>
+</html>
