@@ -1,0 +1,15 @@
+<%- include('partials/header') %>
+
+<div class="container">
+    <div class="jumbotron centered">
+        <i class="fas fa-key fa-6x"></i>
+        <h1 class="display-3">Your record</h1>
+        <p class="secret-text"><% bestScore %></p>
+
+        <a class="btn btn-light btn-lg" href="/logout" role="button">Log Out</a>
+        <a class="btn btn-dark btn-lg" href="/tryagain" role="button">Try Again</a>
+
+
+    </div>
+</div>
+<%- include('partials/footer') %>

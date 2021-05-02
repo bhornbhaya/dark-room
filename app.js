@@ -39,7 +39,8 @@ mongoose.set("useCreateIndex", true);
 const userSchema = new mongoose.Schema({
     email: String,
     password: String,
-    googleId: String
+    googleId: String,
+    score: String
 });
 
 //set up user schema to use passportLocalMongoose
@@ -106,6 +107,26 @@ app.get("/game", function (req, res){
         res.redirect("/login");
     }
 })
+
+app.get("/logout", function(req, res){
+    req.logout();
+    res.redirect("/");
+});
+
+app.get("/tryagain", function (req, res){
+    res.sendFile(path.resolve('public/game.html'));
+})
+
+app.get("/scoreboard", function(req, res){
+    if(req.isAuthenticated()){
+        res.render("scoreboard");
+    } else {
+        res.redirect("/login");
+    }
+
+
+});
+
 
 app.post("/register", function (req,res){
     User.register({username: req.body.username}, req.body.password, function(err, user){

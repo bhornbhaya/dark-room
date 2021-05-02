@@ -266,7 +266,12 @@ You should get a link that you can use to run the file locally!!!-->
             bestScore = timerDisplay.calcBestScore(score, bestScore);
             timerDisplay.getBestScore(bestScore);
             // resetGame();
-            location.reload();
+            //location.reload();
+            window.location = '/scoreboard';
+
+
+
+
         }
         //ELSE UPDATE AND DISPLAY TIMER..
         else{
@@ -301,6 +306,7 @@ You should get a link that you can use to run the file locally!!!-->
             cancelAnimationFrame(animateID);
         }
     }
+
 
     function resetGame(){
         //animateSwitch = false;
