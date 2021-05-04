@@ -1,7 +1,4 @@
 <!DOCTYPE html>
-<!--To run this file..locate the PROJECT_1104 folder directory on your command prompt and type in the following:
- http-server . -p 8000
-You should get a link that you can use to run the file locally!!!-->
 <html lang="en">
 <head>
     <title>Dark Room</title>
@@ -38,26 +35,16 @@ You should get a link that you can use to run the file locally!!!-->
     import {room} from './js/room.js';
     //Initializing variables!!
     let camera, shape, scene, clock, timerDisplay, timer, physicsWorld, renderer, controls, tmpTrans, material;
-    let i, spotlight, ambientLight, cube;
+    let i, spotlight, ambientLight, cube, raycaster, animateID, mainRoom, newWall, score, timerText, scoreText;
+    let transform, motionState, colShape, localInertia, rbInfo, player1, vectorr, dimensions = {length: 350, width: 240};
     const minutes = 0, seconds = 0;
-    let vectorr;
-    let newWall;
-    let score;
     let bestScore = -1;
-    let timerText, scoreText;
     const player = {speed: 3.6};
-    const animateSwitch = Boolean(true);
-    let player1;
-    let transform, motionState, colShape, localInertia, rbInfo;
+    let isExecuted = Boolean(false);
+    let moveSwitch = Boolean(false);
     let playerBody = null,
         moveDirection = { left: 0, right: 0, forward: 0, back: 0 }
-    const STATE = { DISABLE_DEACTIVATION : 4 }
-    let dimensions = {length: 350, width: 240};
-    let raycaster;
-    let animateID;
-    const direction = new THREE.Vector3();
-    const color = new THREE.Color();
-    let mainRoom;
+    const STATE = { DISABLE_DEACTIVATION : 4 };
 
     //Initializing Ammo js (Physics engine)
     Ammo().then( start )
@@ -241,9 +228,20 @@ You should get a link that you can use to run the file locally!!!-->
     function movePlayer(){
 
         let scalingFactor = 20;
-        let moveZ =  (moveDirection.forward - moveDirection.back)*vectorr.z + (moveDirection.right - moveDirection.left)*vectorr.x;
-        let moveX =  (moveDirection.forward - moveDirection.back)*vectorr.x + (moveDirection.left - moveDirection.right)*vectorr.z;
-        let moveY =  0;
+        let moveZ;
+        let moveY;
+        let moveX;
+
+        if (moveSwitch === true){
+            moveZ =  (moveDirection.forward - moveDirection.back)*vectorr.z + (moveDirection.right - moveDirection.left)*vectorr.x;
+            moveX =  (moveDirection.forward - moveDirection.back)*vectorr.x + (moveDirection.left - moveDirection.right)*vectorr.z;
+            moveY =  0;
+        }
+        else{
+            moveZ =  0;
+            moveX =  0;
+            moveY =  0;
+        }
 
         if( moveX === 0 && moveY === 0 && moveZ === 0) return;
         let resultantImpulse = new Ammo.btVector3( moveX, moveY, moveZ )
@@ -263,15 +261,16 @@ You should get a link that you can use to run the file locally!!!-->
         //ONCE PLAYER MOVES INTO END PART OF GAME (WHERE GREEN CUBE IS), RUN PRINTSCORE()
         if (playerBody.position.z < -(dimensions.width -36) && playerBody.position.x > (dimensions.length - 33)) {
             timer.stop();
-            bestScore = timerDisplay.calcBestScore(score, bestScore);
-            timerDisplay.getBestScore(bestScore);
-            // resetGame();
+            if (isExecuted===false){
+                bestScore = timerDisplay.calcBestScore(score, bestScore);
+                timerDisplay.getBestScore(bestScore);
+                isExecuted = true;
+                moveSwitch = false;
+                resetGame();
+            }
             //location.reload();
+
             window.location = '/scoreboard';
-
-
-
-
         }
         //ELSE UPDATE AND DISPLAY TIMER..
         else{
@@ -299,17 +298,13 @@ You should get a link that you can use to run the file locally!!!-->
         spotlight.target.position.set( 0, 0, -1 );
         spotlight.position.copy( camera.position );
         cube.rotation.y += 0.03;
-        if (animateSwitch){
-            animateID = requestAnimationFrame( renderFrame );
-            renderer.render( scene, camera );}
-        else {
-            cancelAnimationFrame(animateID);
-        }
+
+        animateID = requestAnimationFrame( renderFrame );
+        renderer.render( scene, camera );
     }
 
 
     function resetGame(){
-        //animateSwitch = false;
         setTimeout(function(){
             //DELETE PLAYER OBJECTS
             playerBody.geometry.dispose();
@@ -324,9 +319,11 @@ You should get a link that you can use to run the file locally!!!-->
             Ammo.destroy(rbInfo);
             //RECREATE PLAYER OBJECT..
             createPlayer();
+            isExecuted = false;
+            moveSwitch = true;
             //RESTART TIMER
             timer.start();
-        }, 2500);
+        }, 1200);
     }
 
     function setupEventHandlers(){
@@ -399,6 +396,7 @@ You should get a link that you can use to run the file locally!!!-->
 
             instructions.style.display = 'none';
             blocker.style.display = 'none';
+            moveSwitch = true;
 
         } );
 
@@ -406,6 +404,7 @@ You should get a link that you can use to run the file locally!!!-->
 
             blocker.style.display = 'block';
             instructions.style.display = '';
+            moveSwitch = false;
 
         } );
 
