@@ -1,1 +1,1 @@
-# dark-room: An 3D javascript game 
+# dark-room: A 3D javascript game 
